@@ -1,0 +1,5 @@
+name: 'Firebase Function Decision Maker'
+description: 'Decide which functions should be deployed based on commit changes'
+runs:
+  using: 'node12'
+  main: 'index.js'

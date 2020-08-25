@@ -1,0 +1,18 @@
+{
+  "name": "firebase-functions-deployment-decision",
+  "version": "1.0.0",
+  "description": "a GitHub Action that reads your diff & code to decide which functions to deploy",
+  "main": "index.js",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "node $npm_package_main"
+  },
+  "dependencies": {
+    "@actions/core": "1.2.4",
+    "@actions/github": "4.0.0",
+    "@actions/glob": "0.1.0",
+    "globby": "11.0.1",
+    "node-fetch": "2.6.0"
+  }
+}
