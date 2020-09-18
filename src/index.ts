@@ -91,7 +91,9 @@ function findFunctionsChanged(
 
   const functionNames = functionsChanged
     .map((filepath) => basename(filepath, extname(filepath)))
-    .filter((item, index, arr) => arr.indexOf(item) === index);
+    .filter(
+      (item, index, arr) => arr.indexOf(item) === index && item !== 'index'
+    );
 
   return functionNames;
 }
@@ -122,7 +124,8 @@ function processChangedFiles(filepaths: string[]): string[] {
   const refFileMap = (tsProgram as tsProgram).getRefFileMap();
 
   if (!refFileMap) {
-    console.debug('No Reference File Map was generated.');
+    core.debug('No Reference File Map was generated.');
+
     return [];
   }
 
@@ -157,14 +160,12 @@ function processChangedFiles(filepaths: string[]): string[] {
     .then(processChangedFiles)
     .then((changedFunctionNames) => {
       if (!changedFunctionNames.length) {
-        console.debug(
-          'No specific functions changed, so all will be deployed.'
-        );
+        core.debug('No specific functions changed, so all will be deployed.');
 
         return core.setOutput(OUTPUT_KEY, '');
       }
 
-      console.debug(
+      core.debug(
         changedFunctionNames.length + ' functions changed and will deploy.'
       );
 
