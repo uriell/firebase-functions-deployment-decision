@@ -3,6 +3,7 @@ import { createProgram } from 'typescript/lib/typescript';
 import { resolve, basename, extname } from 'path';
 import { sync as globSync } from 'globby';
 import * as github from '@actions/github';
+import * as core from '@actions/core';
 
 import {
   GitHubCommitComparison,
@@ -11,7 +12,7 @@ import {
   ActionEnv,
 } from './types';
 
-console.log(github.context);
+const OUTPUT_KEY = 'functions_changed';
 
 const DEFAULTS = {
   INDIVIDUAL_FUNCTION_REGEX:
@@ -20,17 +21,19 @@ const DEFAULTS = {
     '((tsconfig|package).json|yarn.lock|src/(functions/)?index.ts)$',
 };
 
-const {
-  COMPARE_URL,
-  BEFORE_SHA,
-  AFTER_SHA,
-  GITHUB_TOKEN,
-  GITHUB_WORKSPACE,
-  FULL_DEPLOYMENT_REGEX = DEFAULTS.FULL_DEPLOYMENT_REGEX,
-  INDIVIDUAL_FUNCTION_REGEX = DEFAULTS.INDIVIDUAL_FUNCTION_REGEX,
-  INDIVIDUAL_FUNCTION_GLOB,
-  FILE_CHANGES_REGEX_FILTER,
-} = process.env as ActionEnv;
+const BEFORE_SHA = github.context.payload.before;
+const AFTER_SHA = github.context.payload.after;
+const COMPARE_URL = github.context.payload.repository?.compare_url;
+const FILE_CHANGES_REGEX_FILTER = core.getInput('FILE_CHANGES_REGEX_FILTER');
+const INDIVIDUAL_FUNCTION_GLOB = core.getInput('INDIVIDUAL_FUNCTION_GLOB');
+const GITHUB_TOKEN = core.getInput('GITHUB_TOKEN');
+const FULL_DEPLOYMENT_REGEX =
+  core.getInput('FULL_DEPLOYMENT_REGEX') || DEFAULTS.FULL_DEPLOYMENT_REGEX;
+const INDIVIDUAL_FUNCTION_REGEX =
+  core.getInput('INDIVIDUAL_FUNCTION_REGEX') ||
+  DEFAULTS.INDIVIDUAL_FUNCTION_REGEX;
+
+const { GITHUB_WORKSPACE } = process.env as ActionEnv;
 
 const getCompareUrl = (baseUrl: string, base: string, head: string): string =>
   baseUrl
@@ -47,12 +50,20 @@ const fetchGithubComparison = (
 
 async function getCodeFilesChanged(): Promise<string[]> {
   const compareUrl = getCompareUrl(COMPARE_URL, BEFORE_SHA, AFTER_SHA);
+  core.debug('Fetching GitHub comparison through: ' + compareUrl);
+
   const { files } = await fetchGithubComparison(compareUrl, GITHUB_TOKEN);
 
   const filepaths = files.map((file) => file.filename);
 
+  core.debug(filepaths.length + ' files changed in the comparison.');
+
   if (FILE_CHANGES_REGEX_FILTER) {
     const fileChangesFilter = new RegExp(FILE_CHANGES_REGEX_FILTER);
+
+    core.debug(
+      'Applying FILE_CHANGES_REGEX_FILTER: ' + FILE_CHANGES_REGEX_FILTER
+    );
 
     return filepaths.filter((filepath) => fileChangesFilter.test(filepath));
   }
@@ -97,12 +108,20 @@ function findFunctionsChanged(
 }
 
 function processChangedFiles(filepaths: string[]): string[] {
-  if (!INDIVIDUAL_FUNCTION_GLOB || !filepaths.length) return [];
+  if (!filepaths.length) {
+    core.debug('Empty filepaths array provided to "processChangedFiles()"');
+
+    return [];
+  }
 
   // TODO: change this into a glob environment variable
   const fullDeployment = new RegExp(FULL_DEPLOYMENT_REGEX);
 
-  if (filepaths.some((filepath) => fullDeployment.test(filepath))) return [];
+  if (filepaths.some((filepath) => fullDeployment.test(filepath))) {
+    core.debug('File changes detected that should trigger a full deployment.');
+
+    return [];
+  }
 
   const changedFilepaths = filepaths.map((filepath) =>
     resolve(GITHUB_WORKSPACE, filepath)
@@ -113,7 +132,10 @@ function processChangedFiles(filepaths: string[]): string[] {
   const tsProgram = createProgram(functionFilePaths, {});
   const refFileMap = (tsProgram as tsProgram).getRefFileMap();
 
-  if (!refFileMap) return [];
+  if (!refFileMap) {
+    console.debug('No Reference File Map was generated.');
+    return [];
+  }
 
   const relativeReferences = [...Array.from(refFileMap.entries())]
     .filter((pair) =>
@@ -129,24 +151,37 @@ function processChangedFiles(filepaths: string[]): string[] {
   return findFunctionsChanged(changedFilepaths, relativeReferences);
 }
 
-if (
-  COMPARE_URL &&
-  BEFORE_SHA &&
-  AFTER_SHA &&
-  GITHUB_TOKEN &&
-  GITHUB_WORKSPACE &&
-  FULL_DEPLOYMENT_REGEX &&
-  INDIVIDUAL_FUNCTION_REGEX &&
-  INDIVIDUAL_FUNCTION_GLOB
-) {
+(() => {
+  if (!INDIVIDUAL_FUNCTION_GLOB) {
+    return core.warning('INDIVIDUAL_FUNCTION_GLOB was not set.');
+  }
+
+  if (!GITHUB_TOKEN) {
+    return core.warning('GITHUB_TOKEN was not set.');
+  }
+
   getCodeFilesChanged()
     .then(processChangedFiles)
     .then((changedFunctionNames) => {
       if (!changedFunctionNames.length) {
-        return console.log('');
+        console.debug(
+          'No specific functions changed, so all will be deployed.'
+        );
+
+        return core.setOutput(OUTPUT_KEY, '');
       }
 
-      console.log(':' + changedFunctionNames.join(','));
+      console.debug(
+        changedFunctionNames.length + ' functions changed and will deploy.'
+      );
+
+      core.setOutput(OUTPUT_KEY, ':' + changedFunctionNames.join(','));
     })
-    .catch(() => {});
-}
+    .catch((err) => {
+      core.error(
+        'An error has occurred when deciding which functions to deploy..'
+      );
+
+      core.error(err);
+    });
+})();

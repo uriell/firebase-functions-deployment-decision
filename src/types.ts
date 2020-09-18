@@ -126,9 +126,6 @@ export interface RelativeRef {
 }
 
 export interface ActionEnv extends NodeJS.ProcessEnv {
-  COMPARE_URL: string;
-  BEFORE_SHA: string;
-  AFTER_SHA: string;
   GITHUB_TOKEN: string;
   GITHUB_WORKSPACE: string;
   FULL_DEPLOYMENT_REGEX?: string;
