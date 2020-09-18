@@ -12,28 +12,17 @@ import {
   ActionEnv,
 } from './types';
 
-const OUTPUT_KEY = 'functions_changed';
-
-const DEFAULTS = {
-  INDIVIDUAL_FUNCTION_REGEX:
-    '(functions/(?!index\\.ts$).*\\.ts|(.*)\\.function\\.ts)$',
-  FULL_DEPLOYMENT_REGEX:
-    '((tsconfig|package).json|yarn.lock|src/(functions/)?index.ts)$',
-};
-
+const OUTPUT_KEY = 'FUNCTIONS_CHANGED';
 const BEFORE_SHA = github.context.payload.before;
 const AFTER_SHA = github.context.payload.after;
 const COMPARE_URL = github.context.payload.repository?.compare_url;
-const FILE_CHANGES_REGEX_FILTER = core.getInput('FILE_CHANGES_REGEX_FILTER');
-const INDIVIDUAL_FUNCTION_GLOB = core.getInput('INDIVIDUAL_FUNCTION_GLOB');
-const GITHUB_TOKEN = core.getInput('GITHUB_TOKEN');
-const FULL_DEPLOYMENT_REGEX =
-  core.getInput('FULL_DEPLOYMENT_REGEX') || DEFAULTS.FULL_DEPLOYMENT_REGEX;
-const INDIVIDUAL_FUNCTION_REGEX =
-  core.getInput('INDIVIDUAL_FUNCTION_REGEX') ||
-  DEFAULTS.INDIVIDUAL_FUNCTION_REGEX;
-
 const { GITHUB_WORKSPACE } = process.env as ActionEnv;
+
+const GITHUB_TOKEN = core.getInput('GITHUB_TOKEN');
+const INDIVIDUAL_FUNCTION_GLOB = core.getInput('INDIVIDUAL_FUNCTION_GLOB');
+const FILE_CHANGES_FILTER_REGEX = core.getInput('FILE_CHANGES_FILTER_REGEX');
+const INDIVIDUAL_FUNCTION_REGEX = core.getInput('INDIVIDUAL_FUNCTION_REGEX');
+const FULL_DEPLOYMENT_REGEX = core.getInput('FULL_DEPLOYMENT_REGEX');
 
 const getCompareUrl = (baseUrl: string, base: string, head: string): string =>
   baseUrl
@@ -58,11 +47,11 @@ async function getCodeFilesChanged(): Promise<string[]> {
 
   core.debug(filepaths.length + ' files changed in the comparison.');
 
-  if (FILE_CHANGES_REGEX_FILTER) {
-    const fileChangesFilter = new RegExp(FILE_CHANGES_REGEX_FILTER);
+  if (FILE_CHANGES_FILTER_REGEX) {
+    const fileChangesFilter = new RegExp(FILE_CHANGES_FILTER_REGEX);
 
     core.debug(
-      'Applying FILE_CHANGES_REGEX_FILTER: ' + FILE_CHANGES_REGEX_FILTER
+      'Applying FILE_CHANGES_FILTER_REGEX: ' + FILE_CHANGES_FILTER_REGEX
     );
 
     return filepaths.filter((filepath) => fileChangesFilter.test(filepath));
@@ -152,6 +141,10 @@ function processChangedFiles(filepaths: string[]): string[] {
 }
 
 (() => {
+  if (github.context.eventName !== 'push') {
+    return core.warning('This action should only be triggered for pushes.');
+  }
+
   if (!INDIVIDUAL_FUNCTION_GLOB) {
     return core.warning('INDIVIDUAL_FUNCTION_GLOB was not set.');
   }

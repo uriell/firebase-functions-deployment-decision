@@ -1,5 +1,30 @@
-name: "Firebase Function Decision Maker"
-description: "Decide which functions should be deployed based on commit changes"
+name: 'Firebase Function Decision Maker'
+author: 'Uriell Viana'
+description: 'Decide which functions should be deployed based on commit changes'
+branding:
+  icon: 'package'
+  color: 'green'
+inputs:
+  GITHUB_TOKEN:
+    description: 'A GitHub token to fetch the commit comparison and read file changes.'
+    required: true
+  INDIVIDUAL_FUNCTION_GLOB:
+    description: 'A glob that matches individual function files.'
+    required: true
+  FILE_CHANGES_FILTER_REGEX:
+    description: 'An optional Regular Expression to filter your file changes.'
+    required: false
+  INDIVIDUAL_FUNCTION_REGEX:
+    description: 'An optional Regular Expression to match your individual function files.'
+    required: false
+    default: '(functions/(?!index\\.ts$).*\\.ts|(.*)\\.function\\.ts)$'
+  FULL_DEPLOYMENT_REGEX:
+    description: 'An optional Regular Expression to match when a full deployment will be required.'
+    required: false
+    default: '((tsconfig|package).json|yarn.lock|src/(functions/)?index.ts)$'
+outputs:
+  FUNCTIONS_CHANGED:
+    description: 'A colon-prefixed list of comma-separated function names to append to your "deploy --only functions"'
 runs:
-  using: "node12"
-  main: "dist/index.js"
+  using: 'node12'
+  main: 'dist/index.js'
