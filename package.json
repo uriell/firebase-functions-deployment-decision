@@ -2,10 +2,12 @@
   "name": "firebase-functions-deployment-decision",
   "version": "1.0.0",
   "description": "a GitHub Action that reads your diff & code to decide which functions to deploy",
-  "main": "index.js",
+  "main": "dist/index.js",
   "license": "MIT",
   "private": true,
   "scripts": {
+    "prestart": "yarn prepare",
+    "prepare": "ncc build -m src/index.ts",
     "start": "node $npm_package_main"
   },
   "dependencies": {
@@ -13,6 +15,11 @@
     "@actions/github": "4.0.0",
     "@actions/glob": "0.1.0",
     "globby": "11.0.1",
-    "node-fetch": "2.6.0"
+    "node-fetch": "2.6.0",
+    "typescript": "4.0.2"
+  },
+  "devDependencies": {
+    "@types/node-fetch": "2.5.7",
+    "@vercel/ncc": "0.23.0"
   }
 }

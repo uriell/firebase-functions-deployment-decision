@@ -1,8 +1,15 @@
-const nodeFetch = require('node-fetch');
-const ts = require('typescript');
-const path = require('path');
-const glob = require('globby');
-const github = require('@actions/github');
+import nodeFetch from 'node-fetch';
+import { createProgram } from 'typescript/lib/typescript';
+import { resolve, basename, extname } from 'path';
+import { sync as globSync } from 'globby';
+import * as github from '@actions/github';
+
+import {
+  GitHubCommitComparison,
+  tsProgram,
+  RelativeRef,
+  ActionEnv,
+} from './types';
 
 console.log(github.context);
 
@@ -23,19 +30,22 @@ const {
   INDIVIDUAL_FUNCTION_REGEX = DEFAULTS.INDIVIDUAL_FUNCTION_REGEX,
   INDIVIDUAL_FUNCTION_GLOB,
   FILE_CHANGES_REGEX_FILTER,
-} = process.env;
+} = process.env as ActionEnv;
 
-const getCompareUrl = (baseUrl, base, head) =>
+const getCompareUrl = (baseUrl: string, base: string, head: string): string =>
   baseUrl
     .replace('{base}', base.substr(0, 7))
     .replace('{head}', head.substr(0, 7));
 
-const fetchGithubComparison = (url, authToken) =>
+const fetchGithubComparison = (
+  url: string,
+  authToken: string
+): Promise<GitHubCommitComparison> =>
   nodeFetch(url, {
     headers: { Authorization: 'Bearer ' + authToken },
   }).then((res) => res.json());
 
-async function getCodeFilesChanged() {
+async function getCodeFilesChanged(): Promise<string[]> {
   const compareUrl = getCompareUrl(COMPARE_URL, BEFORE_SHA, AFTER_SHA);
   const { files } = await fetchGithubComparison(compareUrl, GITHUB_TOKEN);
 
@@ -50,7 +60,10 @@ async function getCodeFilesChanged() {
   return filepaths;
 }
 
-function findFunctionsChanged(originPaths, references) {
+function findFunctionsChanged(
+  originPaths: string[],
+  references: RelativeRef
+): string[] {
   const functionsChanged = [];
   const individualFunction = new RegExp(INDIVIDUAL_FUNCTION_REGEX);
 
@@ -77,13 +90,13 @@ function findFunctionsChanged(originPaths, references) {
   }
 
   const functionNames = functionsChanged
-    .map((filepath) => path.basename(filepath, path.extname(filepath)))
+    .map((filepath) => basename(filepath, extname(filepath)))
     .filter((item, index, arr) => arr.indexOf(item) === index);
 
   return functionNames;
 }
 
-function processChangedFiles(filepaths) {
+function processChangedFiles(filepaths: string[]): string[] {
   if (!INDIVIDUAL_FUNCTION_GLOB || !filepaths.length) return [];
 
   // TODO: change this into a glob environment variable
@@ -92,17 +105,17 @@ function processChangedFiles(filepaths) {
   if (filepaths.some((filepath) => fullDeployment.test(filepath))) return [];
 
   const changedFilepaths = filepaths.map((filepath) =>
-    path.resolve(GITHUB_WORKSPACE, filepath)
+    resolve(GITHUB_WORKSPACE, filepath)
   );
-  const functionFilePaths = glob.sync(INDIVIDUAL_FUNCTION_GLOB, {
+  const functionFilePaths = globSync(INDIVIDUAL_FUNCTION_GLOB, {
     cwd: GITHUB_WORKSPACE,
   });
-  const tsProgram = ts.createProgram(functionFilePaths, {});
-  const refFileMap = tsProgram.getRefFileMap();
+  const tsProgram = createProgram(functionFilePaths, {});
+  const refFileMap = (tsProgram as tsProgram).getRefFileMap();
 
   if (!refFileMap) return [];
 
-  const relativeReferences = [...refFileMap.entries()]
+  const relativeReferences = [...Array.from(refFileMap.entries())]
     .filter((pair) =>
       pair[1].every(
         (ref) =>
@@ -111,7 +124,7 @@ function processChangedFiles(filepaths) {
       )
     )
     .map(([origin, refFiles]) => [origin, refFiles.map((ref) => ref.file)])
-    .reduce((acc, pair) => ({ ...acc, [pair[0]]: pair[1] }), {});
+    .reduce((acc, pair) => ({ ...acc, [pair[0] as string]: pair[1] }), {});
 
   return findFunctionsChanged(changedFilepaths, relativeReferences);
 }

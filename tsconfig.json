@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "node",
+    "strict": true
+  },
+  "compileOnSave": true,
+  "include": ["src"]
+}
