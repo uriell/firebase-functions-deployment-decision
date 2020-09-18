@@ -1,6 +1,6 @@
 {
   "name": "firebase-functions-deployment-decision",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "a GitHub Action that reads your diff & code to decide which functions to deploy",
   "main": "dist/index.js",
   "license": "MIT",
